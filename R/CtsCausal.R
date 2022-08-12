@@ -5,7 +5,7 @@
 #' @param Y \code{n x 1} numeric vector of observed outcome values.
 #' @param A \code{n x 1} numeric vector of exposure values.
 #' @param W \code{n x p} data.frame of potential confounders.
-#' @param method controls which method to be used for the estimation and inference. Current supported methods are: \code{'loclin'}, the method by Kennedy et al. (2017) for a continuous treatment \code{A}; \code{'isoreg'}, the method by (Westling et al., 2020) for a isotonic regression typed dose response curve; \code{'debiased'}, the method of debiased local linear estimation
+#' @param method controls which method to be used for the estimation and inference. Current supported methods are: \code{'dr.loclin'}, the method by Kennedy et al. (2017) for a continuous treatment \code{A}; \code{'dr.isoreg'}, the method by (Westling et al., 2020) for a isotonic regression typed dose response curve; \code{'dr.debiased'}, the method of debiased local linear estimation
 #' @param SL.libraries the libraries used for Superlearner. \code{c("SL.mean", "SL.glm", "SL.gam", "SL.earth")} will be used by default.
 #' @param cross.fit boolean variable that controls whether cross fitting will be used for the estimation of nuisance parameters
 #' @param num.folds number that controls the folds of cross fitting. Default is 10.
@@ -54,7 +54,7 @@ ctsCausal <- function(Y, A, W, method,
     colnames(W) <- sapply(1:ncol(W), function(u) paste('W',u, sep = ''))
     }
   #### Isotonic regression and inference
-  if(tolower(method) == 'isoreg'){
+  if(tolower(method) == 'dr.isoreg'){
     ##### Causal Isotonic Regression
       nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=cross.fit,
                                                   verbose=verbose,
@@ -98,7 +98,7 @@ ctsCausal <- function(Y, A, W, method,
                                                     mu.SL.library=SL.libraries,
                                                     g.SL.library=SL.libraries))
 
-    if(tolower(method) == 'loclin'){
+    if(tolower(method) == 'dr.loclin'){
     #### Kennedy's continuous method
 
     loclin <- dr.ctseff(Y, A, W, bw.seq = bw.seq, a.vals = infer.grid,
@@ -107,7 +107,7 @@ ctsCausal <- function(Y, A, W, method,
     return(list(dose=loclin$res$a.vals, response=loclin$res$est, DRCI=data.frame(ci.ll=loclin$res$ci.ll,
                                                                               ci.ul=loclin$res$ci.ul),
                 h=loclin$h.opt))
-    }else if(tolower(method) == 'debiased'){
+    }else if(tolower(method) == 'dr.debiased'){
       #### Kenta's debiased method
       bc.reg <- debiased.ctseff(y=Y, a=A, x=W, bw.seq = bw.seq, eval.pts = infer.grid, mu = nuisance$mu.hat,
                                 g = nuisance$g.hat.fun, tau = rho, kernel.type=kernel, verbose = verbose)
@@ -130,7 +130,7 @@ ctsCausal <- function(Y, A, W, method,
 #' @param Y \code{n x 1} numeric vector of observed outcome values.
 #' @param A \code{n x 1} numeric vector of exposure values.
 #' @param W \code{n x p} data.frame of potential confounders.
-#' @param method decides which method to be used for the test. Current supported methods are: \code{'isoreg'}, the method by (Westling et al., 2020); \code{'continuous'}, the method by (Weng et al., 2022) for a continuous treatment curve.
+#' @param method decides which method to be used for the test. Current supported methods are: \code{'dr.nd'}, the method by (Westling et al., 2020); \code{'dr.cts'}, the method by (Weng et al., 2022) for a continuous treatment curve.
 #' @param SL.libraries the libraries used for Superlearner. If set to NULL, then the default libraries \code{c("SL.mean", "SL.glm", "SL.gam", "SL.earth")} will be used.
 #' @param cross.fit boolean variable that controls whether cross fitting will be used for the estimation of nuisance parameters
 #' @param conf.level the confidence level of the test Default set to 0.95.
@@ -153,15 +153,18 @@ ctsCausal <- function(Y, A, W, method,
 #' ctsCausalTest(Y, A, W, method='isoreg', cross.fit=T, verbose=TRUE)
 
 
-ctsCausalTest <- function(Y, A, W, method, conf.level=0.95, dist="TwoPoint", cross.fit = TRUE, SL.library=NULL, verbose=TRUE){
+ctsCausalTest <- function(Y, A, W, method, conf.level=0.95, dist="TwoPoint", cross.fit = TRUE, SL.library=c("SL.mean", "SL.glm", "SL.gam", "SL.earth"), verbose=TRUE){
 
-  if(is.null(SL.library)) SL.library <- c("SL.mean", "SL.glm", "SL.gam", "SL.earth") else SL.library <- SL.library
+  if(!is.data.frame(W)) {
+    W <- data.frame(W)
+    colnames(W) <- sapply(1:ncol(W), function(u) paste('W',u, sep = ''))
+  }
 
-  if(tolower(method) == 'isoreg'){
+  if(tolower(method) == 'dr.nd'){
     test <- causalNullTest(Y, A, W, control = list(mu.SL.library=SL.library, g.SL.library=SL.library, cross.fit=cross.fit, verbose=verbose, conf.level=conf.level))
 
     return(list(p.value=test$test$p.val, test.stat=test$test$obs.stat, stat.ci.ll=test$test$ci.ll, stat.ci.ul=test$test$ci.ul))
-  }else if(tolower(method) == 'continuous'){
+  }else if(tolower(method) == 'dr.cts'){
     test.fit <- causalDoseResponse(Y, A, W, control = list(method = 'loclin', cross.fit=F))
     test <- drdrtest(Y, A, W, arange = c(min(A), max(A)), pifunc = test.fit$g.hat.fun, mufunc = test.fit$mu.hat, cross.fit=cross.fit, dist=dist)
     return(list(p.value=test$p.value, test.stat=test$test.stat, stat.ci.ll=NULL, stat.ci.ul=NULL))
