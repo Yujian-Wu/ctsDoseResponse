@@ -16,6 +16,7 @@
 #' @param bw.seq numeric vector on which the bandwidth will be selected for method \code{'loclin'} and \code{'debiased'}. Default is \code{seq((max(A) - min(A)) / length(A), max(A), length.out=50)}
 #' @param conf.level number that controls the confidence level for inference. Default set to 0.95.
 #' @param rho real number that controls the ratio of the bandwidth of smoothing kernel and the bandwidth of the kernel for the estimation of bias. Default is 1.
+#' @param kernel kernel functiono used for kernel smoothing. Currently available kernels are \code{'epa'}, the Epanechnikov kernel; \code{'gau'}, the Gaussian kernel; \code{'uni'}, the uniform kernel and \code{'tri'}, the triangle kernel;
 
 #' @examples
 #' # Sample data
