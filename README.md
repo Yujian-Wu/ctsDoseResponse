@@ -11,7 +11,7 @@ The function for nonparametric estimation and inference, ``ctsCausal``, is imple
 
 ### Installation
 
-Please use the R command ``devtools::install_github("https://github.com/Yujian-Wu/ctsCausal/tree/main", dependencies = T)`` to install the package and dependent packages. You might be prompted to updated some existing packages. If you wish to update the package `RcppArmadillo` and the version of your R is not most updated, please be advised to install it from sources that the package doesn't need compilation.
+Please use the R command ``devtools::install_github("https://github.com/Yujian-Wu/ctsCausal/tree/main", dependencies = T)`` to install the package and dependent packages. You might be prompted to updated some existing packages. If you wish to update the package `RcppArmadillo` and the version of your R is not most updated, please be advised to install it from sources that the package does **NOT** need compilation.
 
 
 ### Example
