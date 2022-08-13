@@ -15,3 +15,31 @@ Please use the R command ``devtools::install_github("https://github.com/Yujian-W
 
 
 ### Example
+```
+library(ctsCausal)
+
+set.seed(12345)
+
+n <- 200
+cols <- 3
+
+W <- matrix(runif(n*cols), ncol = cols) # a 200 * 3 matrix of covariates
+A <- rnorm(n, mean=W%*%rnorm(cols)) # a 200 * 1 vector of treatment variable
+Y <- rnorm(n, mean = a^2 + rnorm(n)) # a 200 * 1 vector of response variable
+
+### causal isotonic regression
+iso.reg <- ctsCausal(Y, A, W, method='dr.isoreg', cross.fit = F)
+
+### continuous dose-response curve with smoothing treatment
+loc.lin <- ctsCausal(Y, A, W, method='dr.loclin')
+
+### debiased continuous dose-response curve with smoothing treatment
+bc.loc.lin <- ctsCausal(Y, A, W, method='dr.debiased')
+
+### null hypothesis test for non-diescrete treatment
+test.nd <- ctsCausalTest(Y, A, W, method='dr.nd')
+
+### null hypothesis test for continuous treatment
+test.cts <- ctsCausalTest(Y, A, W, method='dr.cts')
+```
+
