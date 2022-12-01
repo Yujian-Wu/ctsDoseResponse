@@ -5,7 +5,7 @@
 # h: bandwidth for local linear
 # b: bandwidth for local polynomial 
 # kern: kernel function
-compute.rinfl.func <- function(Y, A, a, h, b, tau, kern, muhat.mat, mhat.obs){
+compute.rinfl.func <- function(Y, A, a, h, b, kern, muhat.mat, mhat.obs){
   n <- length(A)
   bw.min <- sort(abs(A-a))[21] # this prevents non-invertible X'X (is there a better way?)
   h <- max(h, bw.min); b <- max(b, bw.min)
@@ -55,13 +55,39 @@ compute.rinfl.func <- function(Y, A, a, h, b, tau, kern, muhat.mat, mhat.obs){
                                          g2.b * res.b * kern.std.b + int2.b,
                                          g3.b * res.b * kern.std.b + int3.b,
                                          g4.b * res.b * kern.std.b + int4.b))
-  # c2 is the second-moment of Kernel
-  # you can empirically estimate this by 
-  # c2.mat <- crossprod(cbind(rep(1, n), a.std)*kern.std, (a.std)^2)
-  # e3 <- matrix(0, 4,1); e3[3] <- 1
-  # c2.hat <- (solve(Dh)%*% c2.mat %*%t(e3) /n)[1,3]
-  # I notice this is more stable for empirical results.
   
   c2 <- integrate(function(u){u^2*kern(u)}, -Inf,Inf)$value
-  return (inf.fn[,1]-tau^2*c2*inf.fn.robust[,3])
+  return (inf.fn[,1]-(h/b)^2*c2*inf.fn.robust[,3])
+}
+
+# compute influence function for local linear estimator with fixed h
+# res: residuals y - E[y|x]
+# A: observed exposure
+# a: the exposure for which we want to evalute an IF
+# h: bandwidth for local linear
+# b: bandwidth for local polynomial 
+# kern: kernel function
+compute.infl.func <- function(Y, A, a, h, kern, muhat.mat, mhat.obs){
+  n <- length(A)
+  bw.min <- sort(abs(A-a))[21] 
+  h <- max(h, bw.min)
+  a.std <- (A - a)/h; kern.std <- kern(a.std)/h
+  
+  c0 <- mean(kern.std)
+  c1 <- mean(kern.std * a.std)
+  c2 <- mean(kern.std * a.std^2)
+  Dh <- matrix(c(c0, c1, 
+                 c1, c2), nrow = 2)
+  g2 <- (A - a)/h
+  
+  int1 <- colMeans(kern.std * (muhat.mat - mhat.obs))
+  int2 <- colMeans(g2 * kern.std * (muhat.mat - mhat.obs))
+  
+  
+  gamma.h <- coef(lm(Y ~ a.std, weights = kern.std))
+  res.h <- Y - gamma.h[1] - gamma.h[2]* a.std
+  
+  inf.fn <- t(solve(Dh) %*% rbind(res.h * kern.std + int1,
+                                  g2 * res.h * kern.std + int2))
+  return (inf.fn[,1])
 }

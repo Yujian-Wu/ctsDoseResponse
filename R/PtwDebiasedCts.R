@@ -26,9 +26,6 @@ debiased.ctseff <- function (y, a, x, bw.seq, eval.pts, mu, g,
   X <- data.frame(X); colnames(X) <- x.names
   X.new <- data.frame(X[rep(1:n, n), ])  # repeat a matrix over rows 
   colnames(X.new) <- x.names
-  
-  # colnames(X) <- colnames(X.new)
-  # colnames(X) <- x.names
   A.new <- rep(A, each = n) # repeat 
   
   # compute pseudo-outcome adjusted for confounding
@@ -56,42 +53,15 @@ debiased.ctseff <- function (y, a, x, bw.seq, eval.pts, mu, g,
   # Line 56 is based on Calonico et al 
   # Line 57 - 80 is based on leave-one-out CV
   h <- lpbwselect(pseudo.out,A, eval=eval.pts, bwselect="imse-dpi")$bws[,2]
-  # hatvals <- function(bw) {
-  #   w.avals <- NULL
-  #   for (a.val in eval.pts) {
-  #     a.std <- (A - a.val)/bw
-  #     kern.std <- kern(a.std)/bw
-  #     w.avals <- c(w.avals, mean(a.std^2 * kern.std) * (kern(0)/bw)/
-  #                    (mean(kern.std) * mean(a.std^2 * kern.std)
-  #                     - mean(a.std * kern.std)^2))
-  #   }
-  #   return(w.avals/n)
-  # }
-  # cts.eff.fn <- function(out, bw) {
-  #   # Instead of local linear like Kennedy, use local polynomial
-  #   # See my.lprobust.R for implementation.
-  #   est <- my.loclinear(A, out, bw, eval = A, kernel.type=kernel.type)
-  #   est[,"mu.hat"]
-  # }
-  # risk.fn <- function(h) {
-  #   hats <- hatvals(h)
-  #   mean(((pseudo.out - cts.eff.fn(pseudo.out, bw = h))/
-  #           (1 - hats))^2, na.rm=TRUE)
-  # }
-  # risk.est <- sapply(bw.seq, risk.fn)
-  # h <- bw.seq[which.min(risk.est)];
   h <- rep(h, length(eval.pts)); b <- h/tau
-  
-  # second-step regression. See my.lprobust.R
-  est <- my.lprobust(A, pseudo.out, h, b, 
-                     eval = eval.pts, 
+  est <- my.lprobust(A, pseudo.out, h, b, eval = eval.pts, 
                      kernel.type=kernel.type) 
   
   if(verbose) cat("\nEstimate pointwise confidence interval with EIF\n")
   # estimate variance with an influence function-based method
   # See influence_functions.R 
   inf.fns <- mapply(function(a0, h.val, b.val){
-    compute.rinfl.func(pseudo.out, A, a0, h.val, b.val, tau, kern, 
+    compute.rinfl.func(pseudo.out, A, a0, h.val, b.val, kern, 
                        muhat.mat, mhat.obs)
   }, eval.pts, h, b)
   se.robust <- apply(inf.fns, 2, sd)/sqrt(n)
