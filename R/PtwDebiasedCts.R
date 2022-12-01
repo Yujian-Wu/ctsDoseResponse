@@ -73,8 +73,7 @@ debiased.ctseff <- function (y, a, x, bw.seq, eval.pts, mu, g,
   out <- data.frame(x=eval.pts, # evalation points on X
                     mu=est[,"mu.hat"],  # the estimate of mean 
                     b=est[,"b.hat"],    # the estimate of bias
-                    se.infl.robust=se.robust, # se based on an influence function
-                    se.rb= est[,"se.rb"]) # se based on fixed-n 
+                    se.infl.robust=se.robust) # se based on an influence function 
   return(out)
 }
 
