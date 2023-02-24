@@ -2,6 +2,16 @@
 #'
 #' This function performs estimation and inference of the causal dose-response curve E[Y | A] for a expose A. The exposure may be discrete, continuous, or an arbitrary mixture of discrete and continuous components.  See the accompanying paper for details.
 #'
+#' @import Rsolnp
+#' @import SuperLearner
+#' @import sets
+#' @import fdrtool
+#' @import KernSmooth
+#' @import reshape
+#' @import plyr
+#' @import nprobust
+#'
+#'
 #' @param Y \code{n x 1} numeric vector of observed outcome values.
 #' @param A \code{n x 1} numeric vector of exposure values.
 #' @param W \code{n x p} data.frame of potential confounders.
@@ -26,15 +36,14 @@
 #' Y <- rexp(n, rate = 1+abs(W$W1 * A))
 #' ctsCausal(Y, A, W, method='isoreg')
 
-library(Rsolnp)
-library(SuperLearner)
-library(sets)
-library(SuperLearner)
-library(fdrtool)
-library(KernSmooth)
-library(reshape)
-library(plyr)
-library(nprobust)
+# library(Rsolnp)
+# library(SuperLearner)
+# library(sets)
+# library(fdrtool)
+# library(KernSmooth)
+# library(reshape)
+# library(plyr)
+# library(nprobust)
 
 ctsCausal <- function(Y, A, W, method,
                       SL.libraries=c("SL.mean", "SL.glm", "SL.gam", "SL.earth"),
