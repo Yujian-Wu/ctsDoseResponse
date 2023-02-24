@@ -36,14 +36,14 @@
 #' Y <- rexp(n, rate = 1+abs(W$W1 * A))
 #' ctsCausal(Y, A, W, method='isoreg')
 
-# library(Rsolnp)
-# library(SuperLearner)
-# library(sets)
-# library(fdrtool)
-# library(KernSmooth)
-# library(reshape)
-# library(plyr)
-# library(nprobust)
+library(Rsolnp)
+library(SuperLearner)
+library(sets)
+library(fdrtool)
+library(KernSmooth)
+library(reshape)
+library(plyr)
+library(nprobust)
 
 ctsCausal <- function(Y, A, W, method,
                       SL.libraries=c("SL.mean", "SL.glm", "SL.gam", "SL.earth"),
