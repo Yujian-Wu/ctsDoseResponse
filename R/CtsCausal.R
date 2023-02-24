@@ -16,7 +16,7 @@
 #' @param bw.seq numeric vector on which the bandwidth will be selected for method \code{'loclin'} and \code{'debiased'}. Default is \code{seq((max(A) - min(A)) / length(A), max(A), length.out=50)}
 #' @param conf.level number that controls the confidence level for inference. Default set to 0.95.
 #' @param rho real number that controls the ratio of the bandwidth of smoothing kernel and the bandwidth of the kernel for the estimation of bias. Default is 1.
-
+#' @export ctsCausal
 #' @examples
 #' # Sample data
 #' n <- 1000
@@ -37,11 +37,11 @@ library(plyr)
 library(nprobust)
 
 ctsCausal <- function(Y, A, W, method,
-                      SL.libraries=c("SL.mean", "SL.glm", "SL.gam", "SL.earth"), 
-                      cross.fit=TRUE, 
-                      num.folds = 10, 
+                      SL.libraries=c("SL.mean", "SL.glm", "SL.gam", "SL.earth"),
+                      cross.fit=TRUE,
+                      num.folds = 10,
                       sigma.sq=NULL,
-                      binary.outcome=FALSE, 
+                      binary.outcome=FALSE,
                       verbose=TRUE,
                       infer.grid=seq(min(A), max(A), length.out=50),
                       bw.seq=seq((max(A) - min(A)) / length(A), max(A), length.out=50),
@@ -56,67 +56,67 @@ ctsCausal <- function(Y, A, W, method,
   #### Isotonic regression and inference
   if(tolower(method) == 'isoreg'){
     ##### Causal Isotonic Regression
-      nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=cross.fit, 
-                                                  verbose=verbose, 
-                                                  V=num.folds, 
-                                                  mu.SL.library=SL.libraries, 
+      nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=cross.fit,
+                                                  verbose=verbose,
+                                                  V=num.folds,
+                                                  mu.SL.library=SL.libraries,
                                                   g.SL.library=SL.libraries))
     #### Isotonic inference
     if (cross.fit){
-      mono.curve <- causal.isoreg(Y, A, W, g.hats = nuisance$g.hat, mu.hats = nuisance$mu.predicted, mu.means = nuisance$m.means.predicted, 
-                                  binary.outcome, verbose = verbose, folds = nuisance$folds)  
+      mono.curve <- causal.isoreg(Y, A, W, g.hats = nuisance$g.hat, mu.hats = nuisance$mu.predicted, mu.means = nuisance$m.means.predicted,
+                                  binary.outcome, verbose = verbose, folds = nuisance$folds)
     }else{
-      mono.curve <- causal.isoreg(Y, A, W, g.hats = nuisance$g.hat, mu.hats = nuisance$mu.predicted, mu.means = nuisance$m.means.predicted, 
+      mono.curve <- causal.isoreg(Y, A, W, g.hats = nuisance$g.hat, mu.hats = nuisance$mu.predicted, mu.means = nuisance$m.means.predicted,
                                   binary.outcome, verbose = verbose)
     }
-    
+
     mono.infer <- confint.causal.isoreg(Y, A, W, fit = mono.curve,
                                         scale.type=c('plug.in', 'DR'),
-                                        mu.hats=nuisance$mu.predicted, 
+                                        mu.hats=nuisance$mu.predicted,
                                         g.hats=nuisance$g.hat,
-                                        mu=nuisance$mu.hat, 
-                                        g=nuisance$g.hat.fun, 
-                                        mu.means=nuisance$m.means.predicted, 
-                                        x0.vals=infer.grid, 
-                                        conf=conf.level, 
+                                        mu=nuisance$mu.hat,
+                                        g=nuisance$g.hat.fun,
+                                        mu.means=nuisance$m.means.predicted,
+                                        x0.vals=infer.grid,
+                                        conf=conf.level,
                                         sigma.sq=sigma.sq, verbose=verbose,binary.outcome)
-    
+
     ### return the estimates
     if(is.null(mono.infer$binary.plug.in)){
-      return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI, 
+      return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI,
                   PlugCI=mono.infer$plug.in.CI))
     }else{
-      return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI, 
+      return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI,
                   PlugCI=mono.infer$plug.in.CI, PlugBiCI=mono.infer$binary.plug.in))
     }
-    
+
   }else{
       ##### Causal Regression for nuisance parameters
-    nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=FALSE, 
-                                                    verbose=verbose, 
-                                                    V=num.folds, 
-                                                    mu.SL.library=SL.libraries, 
+    nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=FALSE,
+                                                    verbose=verbose,
+                                                    V=num.folds,
+                                                    mu.SL.library=SL.libraries,
                                                     g.SL.library=SL.libraries))
-    
+
     if(tolower(method) == 'loclin'){
     #### Kennedy's continuous method
-    
-    loclin <- dr.ctseff(Y, A, W, bw.seq = bw.seq, a.vals = infer.grid, 
+
+    loclin <- dr.ctseff(Y, A, W, bw.seq = bw.seq, a.vals = infer.grid,
                          mu = nuisance$mu.hat, g = nuisance$g.hat.fun, limited.mem = F, se = T)
-    
-    return(list(dose=loclin$res$a.vals, response=loclin$res$est, DRCI=data.frame(ci.ll=loclin$res$ci.ll, 
+
+    return(list(dose=loclin$res$a.vals, response=loclin$res$est, DRCI=data.frame(ci.ll=loclin$res$ci.ll,
                                                                               ci.ul=loclin$res$ci.ul),
                 h=loclin$h.opt))
     }else if(tolower(method) == 'debiased'){
       #### Kenta's debiased method
-      bc.reg <- debiased.ctseff(y=Y, a=A, x=W, bw.seq = bw.seq, eval.pts = infer.grid, mu = nuisance$mu.hat, 
+      bc.reg <- debiased.ctseff(y=Y, a=A, x=W, bw.seq = bw.seq, eval.pts = infer.grid, mu = nuisance$mu.hat,
                                 g = nuisance$g.hat.fun, tau = rho, kernel.type=kernel, verbose = verbose)
-      
+
       bc.est <- bc.reg$mu - bc.reg$b
-      
-      return(list(dose=bc.reg$x, response=bc.est, IFCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.infl.robust, 
+
+      return(list(dose=bc.reg$x, response=bc.est, IFCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.infl.robust,
                                                                 ci.ul=bc.est + qnorm(1-(1-conf.level)/2)*bc.reg$se.infl.robust),
-             RBCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.rb, 
+             RBCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.rb,
                              ci.ul=bc.est + qnorm(1-(1-conf.level)/2)*bc.reg$se.rb)))
     }
   }
@@ -142,7 +142,7 @@ ctsCausal <- function(Y, A, W, method,
 #' If \code{method == "isoreg"}, the following elements are also included in the output:
 #' \item{stat.ci.ll}{The lower limit of the confidence interval for the test statistic.}
 #' \item{stat.ci.ul}{The upper limit of the confidence interval for the test statistic.}
-#'
+#' @export ctsCausalTest
 #' @examples
 #' # Sample data
 #' n <- 1000
@@ -154,12 +154,12 @@ ctsCausal <- function(Y, A, W, method,
 
 
 ctsCausalTest <- function(Y, A, W, method, conf.level=0.95, dist="TwoPoint", cross.fit = TRUE, SL.library=NULL, verbose=TRUE){
-  
+
   if(is.null(SL.library)) SL.library <- c("SL.mean", "SL.glm", "SL.gam", "SL.earth") else SL.library <- SL.library
-  
+
   if(tolower(method) == 'isoreg'){
     test <- causalNullTest(Y, A, W, control = list(mu.SL.library=SL.library, g.SL.library=SL.library, cross.fit=cross.fit, verbose=verbose, conf.level=conf.level))
-    
+
     return(list(p.value=test$test$p.val, test.stat=test$test$obs.stat, stat.ci.ll=test$test$ci.ll, stat.ci.ul=test$test$ci.ul))
   }else if(tolower(method) == 'continuous'){
     test.fit <- causalDoseResponse(Y, A, W, control = list(method = 'loclin', cross.fit=F))
