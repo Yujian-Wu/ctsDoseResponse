@@ -1,21 +1,21 @@
-causal.isoreg <- function(Y, X, W, g.hats, mu.hats, mu.means, binary.outcome=FALSE, verbose=FALSE, folds=NULL) {
-  
-  n <- length(X)
+causal.isoreg <- function(Y, A, W, g.hats, mu.hats, mu.means, binary.outcome=FALSE, verbose=FALSE, folds=NULL) {
+
+  n <- length(A)
   if(class(W) == "data.frame" | class(W) == "numeric") W <- as.matrix(W)
-  
+
   if(verbose) cat("\nEstimating theta...\n")
-  
-  x.ecdf <- ecdf(X)
-  U <- x.ecdf(X)
-  x.vals <- unique(sort(X))
+
+  x.ecdf <- ecdf(A)
+  U <- x.ecdf(A)
+  x.vals <- unique(sort(A))
   u.vals <- x.ecdf(x.vals)
-  
+
   if(is.null(folds)) {
     term1 <- (Y - mu.hats) / g.hats
     step.fun.vals <- sapply(u.vals, function(u0) sum(term1[U <= u0])/n)
-    
+
     int.vals <- sapply(u.vals, function(u0) mean(mu.means * as.numeric(U <= u0)))
-    
+
     Gamma.hat <- step.fun.vals + int.vals
   } else {
     Gamma.hats <- sapply(unique(folds), function(v) {
@@ -23,37 +23,37 @@ causal.isoreg <- function(Y, X, W, g.hats, mu.hats, mu.means, binary.outcome=FAL
       n.v <- length(inds)
       term1 <- (Y[inds] - mu.hats[inds]) / g.hats[inds]
       step.fun.vals <- sapply(u.vals, function(u0) sum(term1[U[inds] <= u0])/n.v)
-      
+
       int.vals <- sapply(u.vals, function(u0) mean(mu.means[inds] * as.numeric(U[inds] <= u0)))
-      
+
       step.fun.vals + int.vals
     })
     Gamma.hat <- rowMeans(Gamma.hats)
   }
-  
+
   gcm <- gcmlcm(c(0,u.vals), c(0,Gamma.hat), type='gcm')
   u.knots <- gcm$x.knots
   Psi.bar <- gcm$y.knots
   slope.knots <- gcm$slope.knots
   if(binary.outcome) slope.knots <- pmin(pmax(slope.knots, 0), 1)
-  
+
   # values of thetahat at x
   theta.hat.uvals <- sapply(u.vals, function(u0) slope.knots[max(which(u.knots < u0))])
-  
+
   ret <- list(x.vals=x.vals, theta.hat=theta.hat.uvals, Gamma.hat=Gamma.hat, u.knots=u.knots, slope.knots=slope.knots)
-  
+
   if(verbose) cat('\nEstimation done!\n')
   return(ret)
 }
 
 
 
-confint.causal.isoreg <- function(Y, X, W, fit, mu.hats, g.hats, mu, g, mu.means, scale.type=c('plug.in', 'DR'), x0.vals=seq(min(X), max(X), length.out=50), conf=.95, sigma.sq=NULL, verbose=FALSE,  binary.outcome=FALSE) {
+confint.causal.isoreg <- function(Y, A, W, fit, mu.hats, g.hats, mu, g, mu.means, scale.type=c('plug.in', 'DR'), x0.vals=seq(min(A), max(A), length.out=50), conf=.95, sigma.sq=NULL, verbose=FALSE,  binary.outcome=FALSE) {
   cat("\nEstimating confidence intervals...\n")
-  n <- length(X)
+  n <- length(A)
   ret <- NULL
   ret$x.vals <- x0.vals
-  x.ecdf <- ecdf(X)
+  x.ecdf <- ecdf(A)
   ret$theta.hat <- sapply(x.ecdf(x0.vals), function(u0) fit$slope.knots[max(which(fit$u.knots < u0))])
   ## INFERENCE
   if(conf > .9999) stop("Confidence greater than 0.9999 not allowed.")
@@ -68,7 +68,7 @@ confint.causal.isoreg <- function(Y, X, W, fit, mu.hats, g.hats, mu, g, mu.means
     down_F <- chernoff_quantiles$Finv[chernoff_quantiles$p == down_p]
     quantile <- down_F + ((up_F - down_F)/(up_p - down_p)) * (pp2 - down_p)
   }
-  
+
   # Estimate derivative
   if(verbose) cat("\nEstimating derivative...\n")
   deriv.hat <- estimate.deriv(u.knots=fit$u.knots, slope.knots=fit$slope.knots, n=length(X))
@@ -78,10 +78,10 @@ confint.causal.isoreg <- function(Y, X, W, fit, mu.hats, g.hats, mu, g, mu.means
     derivs[derivs <= 0] <- min(derivs[derivs > 0])
   }
   ret$psi.prime.hat <- derivs
-  
+
   # Estimate kappa
   if(verbose) cat("\nEstimating scale...\n")
-  kappas <- estimate.kappa(Y,X, W, mu.hats=mu.hats, g.hats=g.hats, mu=mu, g=g, mu.means=mu.means, fit=fit, scale.type=scale.type, x0.vals=x0.vals, sigma.sq=sigma.sq, verbose=verbose, binary.outcome=binary.outcome)
+  kappas <- estimate.kappa(Y,A, W, mu.hats=mu.hats, g.hats=g.hats, mu=mu, g=g, mu.means=mu.means, fit=fit, scale.type=scale.type, x0.vals=x0.vals, sigma.sq=sigma.sq, verbose=verbose, binary.outcome=binary.outcome)
   if("plug.in" %in% tolower(scale.type)) {
     cat("\nEstimating plug in confidence interval...\n")
     ret$plug.in.kappa <- kappas$plug.in.kappa
@@ -93,7 +93,7 @@ confint.causal.isoreg <- function(Y, X, W, fit, mu.hats, g.hats, mu, g, mu.means
     }
     ret$plug.in.CI <- data.frame(ci.ll=ret$plug.in.CI[,1], ci.ul=ret$plug.in.CI[,2])
   }
-  
+
   if("binary.plug.in" %in% tolower(scale.type)) {
     ret$binary.plug.in.kappa <- kappas$binary.plug.in.kappa
     binary.plug.in.scale <-  (4 * abs(derivs) * kappas$binary.plug.in.kappa)^{1/3}
@@ -123,11 +123,11 @@ confint.causal.isoreg <- function(Y, X, W, fit, mu.hats, g.hats, mu, g, mu.means
 estimate.deriv <- function(u.knots, slope.knots, n) {
   pts <- u.knots[c(-1, -length(u.knots))] # BUG fixed
   # pts <- u.knots
-  
+
   vals <- sapply(pts, function(u0) slope.knots[max(which(u.knots < u0))]) # BUG fixed
   # vals <- sapply(pts, function(u0) ifelse(length(which(u.knots < u0)) == 0, 0, slope.knots[max(which(u.knots < u0))]) )
-  
-  
+
+
   bw <- try(KernSmooth::dpill(pts, vals), silent=TRUE)
   while(class(bw) == "try-error" | is.na(bw) | bw<=0) {
     pts <- seq(0,1, length.out=length(pts) + 1)
@@ -139,38 +139,41 @@ estimate.deriv <- function(u.knots, slope.knots, n) {
   return(list(u=fit$x, psi.prime.hat=fit$y))
 }
 
-estimate.kappa <- function(Y, X, W, mu.hats, g.hats, mu, g, mu.means, fit, scale.type=c('plug.in', 'DR'), x0.vals, sigma.sq=NULL, kern = function(x) .75 * (1 - x^2) * (abs(x) <= 1), verbose=FALSE,  binary.outcome=FALSE) {
+estimate.kappa <- function(Y, A, W, mu.hats, g.hats, mu, g, mu.means, fit, scale.type=c('plug.in', 'DR'), x0.vals, sigma.sq=NULL, kern = function(x) .75 * (1 - x^2) * (abs(x) <= 1), verbose=FALSE,  binary.outcome=FALSE) {
   n <- length(Y)
   ret <- NULL
-  x.ecdf <- ecdf(X)
-  U <- x.ecdf(X)
+  x.ecdf <- ecdf(A)
+  U <- x.ecdf(A)
   u.vals <- unique(sort(U))
-  
-  x0w.df <- expand.grid.df(data.frame(X=x0.vals), data.frame(W))
-  x0w.df$U <- x.ecdf(x0w.df$X)
-  
+
+  x0w.df <- expand.grid.df(data.frame(A=x0.vals), data.frame(W))
+  x0w.df$U <- x.ecdf(x0w.df$A)
+
   W.4pred <- as.data.frame(x0w.df[,2:(ncol(W) + 1)])
   colnames(W.4pred) <- colnames(W)
-  
+
   ### fix the case when crossfit TRUE
   if(is.list(g) & is.list(mu)){
-    x0w.df$muhat <- rowMeans(sapply(1:length(mu), function(u){c(mu[[u]](x0w.df$X, W.4pred))}))
-    
-    x0w.df$ghat <- rowMeans(sapply(1:length(g), function(u){c(g[[u]](x0w.df$X, W.4pred))}))
+    x0w.df$muhat <- rowMeans(sapply(1:length(mu), function(u){c(mu[[u]](x0w.df$A, W.4pred))}))
+
+    x0w.df$ghat <- rowMeans(sapply(1:length(g), function(u){c(g[[u]](x0w.df$A, W.4pred))}))
   }else{
-    x0w.df$muhat <- mu(x0w.df$X, W.4pred)
-    x0w.df$ghat <- g(x0w.df$X, W.4pred)
+    x0w.df$muhat <- mu(x0w.df$A, W.4pred)
+    x0w.df$ghat <- g(x0w.df$A, W.4pred)
   }
   if("plug.in" %in% tolower(scale.type)) {
     if(is.null(sigma.sq)) {
-      warning("Scale type 'plug.in' specified but sigma.sq not supplied; no plug-in interval computed.")
+      warning("Scale type 'plug.in' specified but sigma.sq not supplied; It will be estimated instead.")
+      Z_n <- (Y - x0w.df$muhat)^2
+      sigma.sq.fit <- SuperLearner(Z_n, as.data.frame(x0w.df[,1:(ncol(W)+1)]), SL.library = c("SL.mean", "SL.glm", "SL.earth", "SL.gam"))
+      x0w.df$sigma.sq.hat <- sigma.sq.fit$SL.predict
     } else {
       if(verbose) cat("scale type 'plug.in'... ")
-      x0w.df$sigma.sq.hat <- sigma.sq(x0w.df$X,  x0w.df[,2:(ncol(W) + 1)])
-      kappa.hat <- ddply(x0w.df, .(X), function(df) data.frame(kappa.hat = mean(df$sigma.sq.hat / ghat)))
-      kappa.hat <- sapply(x0.vals, function(x0) kappa.hat$kappa.hat[kappa.hat$X == x0])
-      ret$plug.in.kappa <- kappa.hat
+      x0w.df$sigma.sq.hat <- sigma.sq(x0w.df$A,  x0w.df[,2:(ncol(W) + 1)])
     }
+    kappa.hat <- ddply(x0w.df, .(A), function(df) data.frame(kappa.hat = mean(df$sigma.sq.hat / df$ghat)))
+    kappa.hat <- sapply(x0.vals, function(x0) kappa.hat$kappa.hat[kappa.hat$A == x0])
+    ret$plug.in.kappa <- kappa.hat
     # ret$plug.in.kappa <- kappa.hat # BUG fixed
   }
   if("binary.plug.in" %in% tolower(scale.type) & binary.outcome) {
@@ -178,8 +181,8 @@ estimate.kappa <- function(Y, X, W, mu.hats, g.hats, mu, g, mu.means, fit, scale
       warning("Interval type 'binary.plug.in' specified but Y not detected to be binary; no binary plug-in interval computed.")
     } else {
       if(verbose) cat("scale type 'binary.plug.in'... ")
-      kappa.hat <- ddply(x0w.df, .(X), function(df) data.frame(kappa.hat = mean(df$muhat *(1 - df$muhat) / df$ghat)))
-      kappa.hat <- sapply(x0.vals, function(x0) kappa.hat$kappa.hat[kappa.hat$X == x0])
+      kappa.hat <- ddply(x0w.df, .(A), function(df) data.frame(kappa.hat = mean(df$muhat *(1 - df$muhat) / df$ghat)))
+      kappa.hat <- sapply(x0.vals, function(x0) kappa.hat$kappa.hat[kappa.hat$A == x0])
       ret$binary.plug.in.kappa <- kappa.hat
     }
   }
@@ -197,15 +200,15 @@ estimate.kappa <- function(Y, X, W, mu.hats, g.hats, mu, g, mu.means, fit, scale
       gamma.n.h <- mean(kappa.n.h)
       mean((func.vals - gamma.n.h)^2)
     })
-    
+
     h.hat <- hs[which.min(loss.h)]
-    
+
     kappa.hat <- sapply(x0.vals, function(x0) {
       mean(kern((U - x.ecdf(x0)) / h.hat) * func.vals) / h.hat
     })
-    
+
     ret$dr.kappa <- kappa.hat
-    
+
   }
   return(ret)
 }
