@@ -11,6 +11,7 @@ ctsCausalTest(
   method,
   conf.level = 0.95,
   dist = "TwoPoint",
+  nuisance.input = NULL,
   cross.fit = TRUE,
   SL.library = NULL,
   verbose = TRUE

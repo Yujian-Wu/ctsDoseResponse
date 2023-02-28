@@ -50,6 +50,7 @@ ctsCausal <- function(Y, A, W, method,
                       cross.fit=TRUE,
                       num.folds = 10,
                       sigma.sq=NULL,
+                      nuisance.input=NULL,
                       binary.outcome=FALSE,
                       verbose=TRUE,
                       infer.grid=seq(min(A), max(A), length.out=50),
@@ -65,11 +66,14 @@ ctsCausal <- function(Y, A, W, method,
   #### Isotonic regression and inference
   if(tolower(method) == 'isoreg'){
     ##### Causal Isotonic Regression
-      nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=cross.fit,
+    if(is.null(nuisance.input)) {nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=cross.fit,
                                                   verbose=verbose,
                                                   V=num.folds,
                                                   mu.SL.library=SL.libraries,
                                                   g.SL.library=SL.libraries))
+    }else{
+      nuisance <- nuisance.input
+    }
     #### Isotonic inference
     if (cross.fit){
       mono.curve <- causal.isoreg(Y, A, W, g.hats = nuisance$g.hat, mu.hats = nuisance$mu.predicted, mu.means = nuisance$m.means.predicted,
@@ -90,22 +94,30 @@ ctsCausal <- function(Y, A, W, method,
                                         conf=conf.level,
                                         sigma.sq=sigma.sq, verbose=verbose,binary.outcome)
 
+    nuisance.output <- nuisance
+    rm(nuisance)
+
     ### return the estimates
     if(is.null(mono.infer$binary.plug.in)){
       return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI,
-                  PlugCI=mono.infer$plug.in.CI))
+                  PlugCI=mono.infer$plug.in.CI,
+                  nuisance.output=nuisance.output))
     }else{
       return(list(dose=mono.curve$x.vals, response=mono.curve$theta.hat, DRCI=mono.infer$dr.CI,
-                  PlugCI=mono.infer$plug.in.CI, PlugBiCI=mono.infer$binary.plug.in))
+                  PlugCI=mono.infer$plug.in.CI, PlugBiCI=mono.infer$binary.plug.in,
+                  nuisance.output=nuisance.output))
     }
 
   }else{
       ##### Causal Regression for nuisance parameters
-    nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=FALSE,
+    if(is.null(nuisance.input)){nuisance <- causalDoseResponse(Y, A, W, control = list(cross.fit=FALSE,
                                                     verbose=verbose,
                                                     V=num.folds,
                                                     mu.SL.library=SL.libraries,
                                                     g.SL.library=SL.libraries))
+    }else{
+      nuisance <- nuisance.input
+    }
 
     if(tolower(method) == 'loclin'){
     #### Kennedy's continuous method
@@ -113,9 +125,13 @@ ctsCausal <- function(Y, A, W, method,
     loclin <- dr.ctseff(Y, A, W, bw.seq = bw.seq, a.vals = infer.grid,
                          mu = nuisance$mu.hat, g = nuisance$g.hat.fun, limited.mem = F, se = T)
 
+    nuisance.output <- nuisance
+    rm(nuisance)
+
     return(list(dose=loclin$res$a.vals, response=loclin$res$est, DRCI=data.frame(ci.ll=loclin$res$ci.ll,
                                                                               ci.ul=loclin$res$ci.ul),
-                h=loclin$h.opt))
+                h=loclin$h.opt,
+                nuisance.output=nuisance.output))
     }else if(tolower(method) == 'debiased'){
       #### Kenta's debiased method
       bc.reg <- debiased.ctseff(y=Y, a=A, x=W, bw.seq = bw.seq, eval.pts = infer.grid, mu = nuisance$mu.hat,
@@ -123,10 +139,14 @@ ctsCausal <- function(Y, A, W, method,
 
       bc.est <- bc.reg$mu - bc.reg$b
 
+      nuisance.output <- nuisance
+      rm(nuisance)
+
       return(list(dose=bc.reg$x, response=bc.est, IFCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.infl.robust,
                                                                 ci.ul=bc.est + qnorm(1-(1-conf.level)/2)*bc.reg$se.infl.robust),
              RBCI=data.frame(ci.ll=bc.est - qnorm(1-(1-conf.level)/2)*bc.reg$se.rb,
-                             ci.ul=bc.est + qnorm(1-(1-conf.level)/2)*bc.reg$se.rb)))
+                             ci.ul=bc.est + qnorm(1-(1-conf.level)/2)*bc.reg$se.rb),
+             nuisance.output=nuisance.output))
     }
   }
 }
@@ -162,18 +182,29 @@ ctsCausal <- function(Y, A, W, method,
 #' ctsCausalTest(Y, A, W, method='isoreg', cross.fit=T, verbose=TRUE)
 
 
-ctsCausalTest <- function(Y, A, W, method, conf.level=0.95, dist="TwoPoint", cross.fit = TRUE, SL.library=NULL, verbose=TRUE){
+ctsCausalTest <- function(Y, A, W, method, conf.level=0.95, dist="TwoPoint", nuisance.input=NULL, cross.fit = TRUE, SL.library=NULL, verbose=TRUE){
 
   if(is.null(SL.library)) SL.library <- c("SL.mean", "SL.glm", "SL.gam", "SL.earth") else SL.library <- SL.library
 
   if(tolower(method) == 'isoreg'){
-    test <- causalNullTest(Y, A, W, control = list(mu.SL.library=SL.library, g.SL.library=SL.library, cross.fit=cross.fit, verbose=verbose, conf.level=conf.level))
-
-    return(list(p.value=test$test$p.val, test.stat=test$test$obs.stat, stat.ci.ll=test$test$ci.ll, stat.ci.ul=test$test$ci.ul))
+    if(is.null(nuisance.input)){
+      test <- causalNullTest(Y, A, W, control = list(mu.SL.library=SL.library, g.SL.library=SL.library, cross.fit=cross.fit, verbose=verbose, conf.level=conf.level,
+                                                     save.nuis.fits=T))
+    }else{
+      test <- causalNullTest(Y, A, W, control = list(mu.SL.library=SL.library, g.SL.library=SL.library, cross.fit=cross.fit, verbose=verbose, conf.level=conf.level,
+                                                     g.hat=nuisance.input$g.hat, mu.hat=nuisance.input$mu.hat, save.nuis.fit=T))
+    }
+    return(list(p.value=test$test$p.val, test.stat=test$test$obs.stat, stat.ci.ll=test$test$ci.ll, stat.ci.ul=test$test$ci.ul, nuisance.output=test$ret.list))
   }else if(tolower(method) == 'continuous'){
-    test.fit <- causalDoseResponse(Y, A, W, control = list(method = 'loclin', cross.fit=F))
-    test <- drdrtest(Y, A, W, arange = c(min(A), max(A)), pifunc = test.fit$g.hat.fun, mufunc = test.fit$mu.hat, cross.fit=cross.fit, dist=dist)
-    return(list(p.value=test$p.value, test.stat=test$test.stat, stat.ci.ll=NULL, stat.ci.ul=NULL))
+    if(is.null(nuisance.input)){
+      test.fit <- causalDoseResponse(Y, A, W, control = list(method = 'loclin', cross.fit=F))
+      test <- drdrtest(Y, A, W, arange = c(min(A), max(A)), pifunc = test.fit$g.hat.fun, mufunc = test.fit$mu.hat, dist=dist)
+      return(list(p.value=test$p.value, test.stat=test$test.stat, stat.ci.ll=NULL, stat.ci.ul=NULL, nuisance.output=list(g.hat.fun=test.fit$g.hat.fun, mu.hat=test.fit$mu.hat)))
+    }else{
+      test.fit <- causalDoseResponse(Y, A, W, control = list(method = 'loclin', cross.fit=F, g.hat=nuisance.input$g.hat.fun, mu.hat=nuisance.input$mu.hat))
+      test <- drdrtest(Y, A, W, arange = c(min(A), max(A)), pifunc = test.fit$g.hat, mufunc = test.fit$mu.hat, dist=dist)
+      return(list(p.value=test$p.value, test.stat=test$test.stat, stat.ci.ll=NULL, stat.ci.ul=NULL, nuisance.output=list(g.hat.fun=test.fit$g.hat, mu.hat=test.fit$mu.hat)))
+    }
   }
 }
 

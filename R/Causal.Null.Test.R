@@ -1,18 +1,20 @@
 causalNullTest <- function(Y, A, W, p=2, control = list()) {
-  
+
+  if(!is.data.frame(W)) W <- as.data.frame(W)
+
   call <- match.call(expand.dots = TRUE)
   control <- do.call("causalNullTest.control", control)
-  
+
   .check.input(Y=Y, A=A, W=W, p=p, control=control)
-  
+
   library(mvtnorm)
   n <- length(Y)
   a.vals <- sort(unique(A))
-  
+
   if(control$cross.fit & is.null(control$folds)) {
     control$folds <- sample(rep(1:control$V, length.out = n), replace=FALSE)
   }
-  
+
   if(is.null(control$mu.hat)) {
     library(SuperLearner)
     if(control$cross.fit) {
@@ -38,7 +40,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       if(control$verbose) cat("\n")
     }
   }
-  
+
   if(is.null(control$g.hat)) {
     if(control$cross.fit) {
       if(control$verbose) cat("Estimating propensities..")
@@ -55,11 +57,11 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       control$g.hat <- g.fit$SL.densities
       rm(g.fit)
       #control$g.hat <- function(a, w) c(predict.cmdSuperLearner(g.fit, newA = a, newW = w))
-      
+
       if(control$verbose) cat("\n")
     }
   }
-  
+
   if(control$verbose) cat("Computing Omega...")
   if(!control$cross.fit) {
     ord <- order(A)
@@ -88,23 +90,23 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
     partial.mu.means <- t(apply(mu.hats, 1, cumsum)) / n
     gamma.hat <- mean(mu.hats)
     Omega.a.vals <- sapply(a.vals, function(a0) mean(as.numeric(A <= a0) * theta.A)) - gamma.hat * u.vals
-    
+
     IF.vals <- sapply(a.vals, function(a0) {
       if(any(A <= a0))  mumean.vals <- partial.mu.means[,max(which(A <= a0))]
       else mumean.vals <- 0
       (as.numeric(A <= a0) - a.ecdf(a0)) * ((Y - mu.hats.data) / g.hats + theta.A - gamma.hat) + mumean.vals - partial.mu.means[,n] * a.ecdf(a0) - 2 * Omega.a.vals[which(a.vals == a0)]
     })
-    
+
     Omega.hat <- colMeans(IF.vals) + Omega.a.vals
-    
+
     if(control$verbose) cat("\nComputing covariance...\n")
-    
+
     Sigma.hat <- sapply(1:length(a.vals), function(s) sapply(1:length(a.vals), function(t) {
       mean(IF.vals[,s] * IF.vals[,t])
     }))
   }
   else {
-    
+
     fold.Omega.hats <- matrix(NA, nrow = control$V, ncol = length(a.vals))
     IF.vals <- vector(length=control$V, mode='list')
     for(j in 1:control$V) {
@@ -121,7 +123,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
         g.hats.test <- control$g.hat[[j]](a = A.test, w = W.test)
       }
       else g.hats.test <- control$g.hat[[j]]
-      
+
       if(any(g.hats.test < control$g.trunc)) {
         warning("Truncating g.hats below. Possible positivity issues.")
         g.hats.test[g.hats.test < control$g.trunc] <- control$g.trunc
@@ -138,49 +140,49 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
       partial.mu.means <- t(apply(mu.hats, 1, cumsum)) / Nv
       gamma.hat <- mean(mu.hats)
       Omega.a.vals <- sapply(a.vals, function(a0) mean(as.numeric(A.test <= a0) * theta.A)) - gamma.hat * u.vals
-      
+
       IF.vals[[j]] <- sapply(a.vals, function(a0) {
         if(any(A.test <= a0)) mumean.vals <- partial.mu.means[,max(which(A.test <= a0))]
         else mumean.vals <- 0
         (as.numeric(A.test <= a0) - a.ecdf(a0)) * ((Y.test - mu.hats.data) / g.hats.test + theta.A - gamma.hat) + mumean.vals - partial.mu.means[,ncol(partial.mu.means)] * a.ecdf(a0) - 2 * Omega.a.vals[which(a.vals == a0)]
       })
-      
+
       fold.Omega.hats[j,] <- colMeans(IF.vals[[j]]) + Omega.a.vals
     }
-    
+
     Omega.hat <- colMeans(fold.Omega.hats)
     if(control$verbose) cat("\nComputing covariance...\n")
     Sigma.hat <- sapply(1:length(a.vals), function(s) sapply(1:length(a.vals), function(t) {
       mean(unlist(lapply(IF.vals, function(IF) mean(IF[,s] * IF[,t]))))
     }))
   }
-  
+
   if(control$verbose) cat("Simulating paths...\n")
-  
+
   paths <- rmvnorm(control$n.sim, sigma=Sigma.hat)
-  
+
   if(control$verbose) cat("Computing statistics...\n")
-  
+
   a.weights <- sapply(a.vals, function(a) mean(A == a))
   ret <- t(sapply(p, function(pp) {
     stat <- ifelse(pp < Inf, (sum(abs(Omega.hat )^pp * a.weights))^{1/pp}, max(abs(Omega.hat)))
-    
+
     if(pp < Inf) {
       stats <- (apply(abs(paths)^pp, 1, function(row) sum(row * a.weights)))^{1/pp}
     } else {
       stats <- apply(abs(paths), 1, max)
     }
-    
+
     p.val <- mean(stats / sqrt(n) > stat)
-    
+
     q <- quantile(stats, (1 - (1-control$conf.level) / 2))
     ci.ll <- max(stat - q / sqrt(n), 0)
     ci.ul <- stat + q / sqrt(n)
-    
+
     res <- c(stat, p.val, ci.ll, ci.ul)
-    
+
     res
-    
+
   }))
   ret.df <- data.frame(p = p, obs.stat = ret[,1], p.val = ret[,2], ci.ll = ret[,3], ci.ul = ret[,4])
   ret.list <- list(test = ret.df)
@@ -191,7 +193,7 @@ causalNullTest <- function(Y, A, W, p=2, control = list()) {
     ret.list <- data.frame(c(ret.list, mu.hat = control$mu.hat, g.hat = control$g.hat))
     if(control$cross.fit) ret.list <- c(ret.list, folds = control$folds)
   }
-  
+
   return(ret.list)
 }
 

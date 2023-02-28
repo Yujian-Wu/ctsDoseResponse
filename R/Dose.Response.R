@@ -9,6 +9,7 @@ causalDoseResponse.control <- function(A, method = "loclin",
                                        save.nuis.fits = FALSE,
                                        mu.hat = NULL,
                                        g.hat = NULL,
+                                       # g.hat.fun=NULL,
                                        conf.level = 0.95,
                                        verbose = TRUE,
                                        limited.mem = length(A) > 1e4) {
@@ -16,8 +17,8 @@ causalDoseResponse.control <- function(A, method = "loclin",
   list(method = method, var.method = var.method, mu.SL.library = mu.SL.library, g.SL.library = g.SL.library, g.n.bins = g.n.bins, cross.fit = cross.fit, V = V, folds = folds, save.nuis.fits = save.nuis.fits, mu.hat = mu.hat, g.hat = g.hat, conf.level = conf.level, verbose = verbose, limited.mem = limited.mem)
 }
 
-cmdSuperLearner.control <- function (n.bins = 2:floor(length(unique(A))/50), 
-                                     SL.library = c("SL.mean", "SL.glm", "SL.gam", "SL.earth"), 
+cmdSuperLearner.control <- function (n.bins = 2:floor(length(unique(A))/50),
+                                     SL.library = c("SL.mean", "SL.glm", "SL.gam", "SL.earth"),
                                      saveFitLibrary = TRUE, verbose = FALSE) {
   list(n.bins = n.bins, SL.library = SL.library, saveFitLibrary = saveFitLibrary, verbose = verbose)
 }
@@ -44,7 +45,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
   W <- as.data.frame(W)
   newW <- as.data.frame(newW)
   U <- as.numeric(U)
-  
+
   tab <- table(U)
   un.U <- as.numeric(names(tab))
   un.U.frac <- as.numeric(tab) / length(U)
@@ -72,13 +73,13 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
       mass.intervals <- NULL
       cont.intervals <- data.frame(lower=0, upper=1, length=1)
     }
-    
+
     n.cont.bins <- b - n.mass.pts
     if(n.cont.bins > 0) {
       delta <- sum(cont.intervals$length) / n.cont.bins
       delta <- round(delta, digits=ceiling(log10(n)) + 2)
       cont.bin.endpts <- matrix(NA, nrow=n.cont.bins, ncol=2)
-      
+
       for(j in 1:n.cont.bins) {
         if(j == 1) start <- cont.intervals$lower[1]
         else start <- end
@@ -105,7 +106,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
         if(j == n.cont.bins) end <- cont.intervals$upper[nrow(cont.intervals)]
         cont.bin.endpts[j,] <- c(start, end)
       }
-      
+
       cont.intervals <- lapply(1:n.cont.bins, function(j) {
         if(j == 1) int <- interval(cont.bin.endpts[j, 1], cont.bin.endpts[j, 2], bounds="[]")
         else int <- interval(cont.bin.endpts[j, 1], cont.bin.endpts[j, 2], bounds="(]")
@@ -119,19 +120,19 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
     } else {
       cont.intervals <- list()
     }
-    
+
     bins <- c(mass.intervals, cont.intervals)
   }
-  
+
   bin.sizes <- unlist(lapply(bins, interval_measure))
-  
+
   disc.U <- .find.bin(U, bins)
-  
+
   U.new <- a.ecdf(newA)
   disc.U.new <- .find.bin(U.new, bins)
-  
+
   bin.fracs <- sapply(1:b, function(j) mean(disc.U == j))
-  
+
   bin.fits <- NULL
   bin.probs <- matrix(NA, nrow=m, ncol=b)
   for(bin in 1:b) {
@@ -154,14 +155,14 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
       bin.probs[,bin] <- bin.mean
     }
   }
-  
-  
-  
+
+
+
   #SL.bin.probs <- .make.doubly.stochastic(bin.probs, row.sums = rep(1, m), col.sums = bin.fracs * m)
   SL.bin.probs <- bin.probs / rowSums(bin.probs)
-  
+
   SL.densities <- SL.bin.probs[cbind(1:m, disc.U.new)] / bin.sizes[disc.U.new]
-  
+
   n.alg <- ncol(bin.fits[["bin1.SL"]]$Z)
   cv.library.densities <-  matrix(NA, nrow=n, ncol=n.alg)
   library.densities <- matrix(NA, nrow=m, ncol=n.alg)
@@ -179,7 +180,7 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
       cv.bin.probs <- cv.bin.probs / rowSums(cv.bin.probs)
       cv.library.densities[,j] <- cv.bin.probs[cbind(1:n, disc.U)] / bin.sizes[disc.U]
     }
-    
+
     if(any(is.na(library.bin.probs)) | any(colSums(library.bin.probs) == 0) | any(rowSums(library.bin.probs) == 0)) {
       library.densities[,j] <- rep(NA, m)
     } else {
@@ -188,26 +189,29 @@ cmdSuperLearner.onebin <- function(A, W, newA=A, newW=W, b, SL.library, verbose,
       library.densities[,j] <- library.bin.probs[cbind(1:m, disc.U.new)] / bin.sizes[disc.U.new]
     }
   }
-  
+
   alg.names <- paste0(bin.fits[["bin1.SL"]]$libraryNames, "_", b, "bins")
-  
+
   ret <- list(bins = bins,  a.ecdf = a.ecdf, SL.bin.probs = SL.bin.probs, SL.densities = SL.densities, cv.library.densities = cv.library.densities, library.densities = library.densities, alg.names = alg.names)
   if(saveFitLibrary) ret$bin.fits <- bin.fits
   return(ret)
-  
+
 }
 
 causalDoseResponse <- function(Y, A, W, control = list()) {
+
+  if(!is.data.frame(W)) W <- data.frame(W)
+
   control$A <- A
   control <- do.call("causalDoseResponse.control", control)
   n <- length(Y)
-  
+
   if(control$cross.fit & is.null(control$folds)) {
     control$folds <- sample(rep(1:control$V, length.out = n), replace=FALSE)
   }
-  
+
   if(is.null(control$mu.hat)) {
-    
+
     Fn <- ecdf(A)
     U <- Fn(A)
     if(control$cross.fit) {
@@ -233,7 +237,7 @@ causalDoseResponse <- function(Y, A, W, control = list()) {
       if(control$verbose) cat("\n")
     }
   }
-  
+
   if(is.null(control$g.hat)) {
     if(control$cross.fit) {
       if(control$verbose) cat("\nEstimating propensities..\n")
@@ -253,13 +257,13 @@ causalDoseResponse <- function(Y, A, W, control = list()) {
       control$g.hat <- g.fit$SL.densities
       control$g.hat.fun <- function(a, w) c(predict.cmdSuperLearner(g.fit, newA = a, newW = w))
       # rm(g.fit)
-      
+
       if(control$verbose) cat("\n")
     }
   }
-  
+
   if(control$verbose) cat("Computing conditional means... \n")
-  
+
   if(control$limited.mem) {
     if(control$cross.fit) {
       muhat.obs <- mhat.obs <- rep(NA, n)
@@ -301,10 +305,10 @@ causalDoseResponse <- function(Y, A, W, control = list()) {
       # mhat.mat <- matrix(mhat.obs, byrow = TRUE, ncol = n, nrow = n) # BUG
     }
   }
-  
+
   control$mu.predicted <- muhat.obs
   control$m.means.predicted <- mhat.obs
-  
+
   if('loclin' %in% control$method) {
     ghat.obs <- rep(NA, n)
     if(control$cross.fit) {
@@ -321,19 +325,19 @@ causalDoseResponse <- function(Y, A, W, control = list()) {
 cmdSuperLearner <- function(A, W, newA = A, newW = W, control = list(), cvControl = list()) {
   # num.libraries <- length(control$SL.library)
   n <- nrow(W)
-  
+
   call <- match.call(expand.dots = TRUE)
   control <- do.call("cmdSuperLearner.control", control)
   cvControl <- do.call("cmdSuperLearner.CV.control", cvControl)
-  
+
   validRows <- cmdCVFolds(n = n, cvControl = cvControl)
-  
+
   fits <- NULL
   for(b in control$n.bins) {
     if(control$verbose) cat("\nEstimating models with", b, "bins... \n")
     fits[[paste0('dens.fit.', b, 'bins')]] <- cmdSuperLearner.onebin(A, W, newA=newA, newW = newW, b=b, SL.library = control$SL.library, verbose = control$verbose, validRows = validRows, saveFitLibrary = control$saveFitLibrary)
   }
-  
+
   algs.per.bin <- ncol(fits[[1]]$cv.library.densities)
   n.algs <- length(control$n.bins) * algs.per.bin
   cv.library.densities <- matrix(NA, nrow=n, ncol=n.algs)
@@ -347,14 +351,14 @@ cmdSuperLearner <- function(A, W, newA = A, newW = W, control = list(), cvContro
     library.names <- c(library.names, fits[[paste0('dens.fit.', b, 'bins')]]$alg.names)
     start.col <- end.col + 1
   }
-  
+
   if(control$verbose) cat("\nOptimizing model weights...\n")
-  
+
   # Remove algs with errors in cv predictions
   errors.in.library <- apply(cv.library.densities, 2, function(col) any(is.na(col)))
   if(any(errors.in.library)) warning(paste0("Errors in the following candidate algorithms: ", library.names[which(errors.in.library)]))
   n.include <- sum(!errors.in.library)
-  
+
   # Do SL log-likelihood optimization
   cv_risk <- function(beta) -mean(log(cv.library.densities[,!errors.in.library] %*% beta))
   capture.output(solnp_solution <- solnp(rep(1/n.include, n.include), cv_risk, eqfun=sum, eqB=1, ineqfun=function(beta) beta, ineqLB=rep(0,n.include), ineqUB=rep(1, n.include)))
@@ -375,7 +379,7 @@ cmdSuperLearner <- function(A, W, newA = A, newW = W, control = list(), cvContro
     }
   }
   SL.density <- c(library.densities[,!errors.in.library,drop=FALSE] %*% solnp_solution$pars)
-  
+
   return(list(fits = fits, cv.library.densities = cv.library.densities, library.densities = library.densities, SL.densities = SL.density, coef = coef, library.names = library.names, a.ecdf = ecdf(A), control=control, cvControl = cvControl))
 }
 
@@ -420,7 +424,7 @@ cmdCVFolds <- function (n, cvControl) {
   else {
     validRows <- split(1:n, rep(1:V, length = n))
   }
-  
+
   return(validRows)
 }
 
@@ -432,6 +436,6 @@ cmdCVFolds <- function (n, cvControl) {
   }))
   if(any(rowSums(mat) > 1)) stop("Overlapping bins")
   if(any(rowSums(mat) == 0)) stop("Element outside all bins")
-  
+
   apply(mat, 1, function(row) which(row))
 }
