@@ -1,8 +1,8 @@
-# ctsCausal
+# ctsDoseResponse
 
 ### Overview
 
-ctsCausal is a tool for nonparametric estimation and inference of a continuous dose-response curve, as well as for null hypothesis testing of whether a dose-response is flat or not. It has two main functions ``ctsCausal`` and ``ctsCausalTest``.
+ctsDoseResponse is a tool for nonparametric estimation and inference of a continuous dose-response curve, as well as for null hypothesis testing of whether a dose-response is flat or not. It has two main functions ``ctsCausal`` and ``ctsCausalTest``.
 
 The function for nonparametric estimation and inference, ``ctsCausal``, is implemented with three different methods. The method ``dr.isoreg`` is for [causal isotonic regression](https://rss.onlinelibrary.wiley.com/doi/10.1111/rssb.12372), the method ``dr.loclin`` is for [doubly robust estimation of continuous treatment effects](https://rss.onlinelibrary.wiley.com/doi/10.1111/rssb.12212) and the method ``dr.debiased`` is for debiased doubly robust estimation of continuous treatment effects.
 
@@ -11,12 +11,12 @@ The function for nonparametric estimation and inference, ``ctsCausal``, is imple
 
 ### Installation
 
-Please use the R command ``devtools::install_github("https://github.com/Yujian-Wu/ctsCausal/tree/main", dependencies = T, auth_token = "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")`` to install the package and dependent packages. You might be prompted to updated some existing packages. If you wish to update the package `RcppArmadillo` and the version of your R is not most updated, please be advised to install it from sources that the package does **NOT** need compilation.
+Please use the R command ``devtools::install_github("https://github.com/Yujian-Wu/ctsDoseResponse/tree/main", dependencies = T, auth_token = "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")`` to install the package and dependent packages. You might be prompted to updated some existing packages. If you wish to update the package `RcppArmadillo` and the version of your R is not most updated, please be advised to install it from sources that the package does **NOT** need compilation.
 
 
 ### Example
 ```
-library(ctsCausal)
+library(ctsDoseResponse)
 
 set.seed(12345)
 
